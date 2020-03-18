@@ -1,14 +1,3 @@
-library(doParallel)
-library(foreach)
-library(igraph)
-library(tidygraph)
-library(tidyr)
-library(dplyr)
-library(sf)
-library(stplanr)
-library(spdep)
-file.sources = list.files(path = paste0(getwd(),"/R/functions/"),pattern="*.R$",full.names = TRUE)
-sapply(file.sources,source,.GlobalEnv)
 
 ### Load data
 

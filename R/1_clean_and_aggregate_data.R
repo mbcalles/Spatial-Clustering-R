@@ -1,12 +1,3 @@
-#################### Load Packages ####################
-
-library(sf)
-library(dplyr)
-library(stringr)
-library(cancensus)
-library(lubridate)
-library(readr)
-library(tidyr)
 
 #################### 1. Read in data ####################
 
@@ -28,18 +19,7 @@ crd_ct <- crd_ct %>%
 crd <- crd_ct %>%
   st_union()
 
-#CRD Dissimenation Area
-
-crd_da <- get_census(dataset='CA16', regions=list(CMA="59935"),
-                     vectors = c(bicycle="v_CA16_5807"),
-                     level='DA', use_cache = FALSE, geo_format = 'sf') %>%
-  st_transform(crs = 26910)  #transform projection to NAD 83 UTM Zone10N
-
-crd_da <- crd_da %>%
-  filter(`Region Name` == "Saanich" |
-           `Region Name` == "Oak Bay" |
-           `Region Name` == "Victoria" |
-           `Region Name` == "Esquimalt" )
+st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
 ### read icbc data
 
@@ -348,5 +328,4 @@ st_write(bm_snp,paste0(getwd(), "/input/processed/","inc_bm_201601_201709_snp_30
 
 st_write(icbc_snp,paste0(getwd(), "/input/processed/","inc_icbc_201601_201709_snp_30m.gpkg"))
 
-st_write(crd,paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
