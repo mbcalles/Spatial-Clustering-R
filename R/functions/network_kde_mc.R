@@ -276,16 +276,4 @@ system.time({
   return(network_kde)
 }
 
-ex <- network_kde_lisa(lixel_list,point_process,bandwidth = c(100),n_cores = 2, attribute =1, nsim = 9999,spatial_lag = 10)
-
-sig_threshold <- 0.01
-ex$type = factor(case_when(ex$pvalue_kde_bw_100 <=sig_threshold & ex$kde_bw_100_z >0 & ex$kde_bw_100_lag_z>0 ~ "High-High",
-                           ex$pvalue_kde_bw_100 <=sig_threshold & ex$kde_bw_100_z >0 & ex$kde_bw_100_lag_z<0 ~ "High-Low",
-                           ex$pvalue_kde_bw_100 <=sig_threshold & ex$kde_bw_100_z <0 & ex$kde_bw_100_lag_z>0 ~ "Low-High",
-                           ex$pvalue_kde_bw_100 <=sig_threshold & ex$kde_bw_100_z <0 & ex$kde_bw_100_lag_z<0 ~ "Low-Low",
-                        TRUE ~ "Insig."),
-              levels = c("High-High","Low-Low","Low-High","High-Low","Insig."))#significant clusters
-
-library(mapview)
-mapview(ex,z="kde_bw_100") + mapview(ex,z="type")
 
