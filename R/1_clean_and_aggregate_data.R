@@ -19,7 +19,6 @@ crd_ct <- crd_ct %>%
 crd <- crd_ct %>%
   st_union()
 
-st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
 ### read icbc data
 
@@ -79,7 +78,8 @@ bm <- readLines('https://bikemaps.org/incidents.json') %>%  #Read in data from w
 e <- read_sf(paste0(getwd(),"/input/exposure/STRAVA/Edges/victoria_osm_edges.shp")) %>%
   st_transform(crs = 26910) %>% #transform projection to NAD 83 UTM Zone10N
   filter(CLAZZ!=1) %>% #remove ferry routes
-  filter(st_intersects(x=.,y=st_as_sfc(st_bbox(crd)),sparse=FALSE)) # subset road network by capital region bounding box
+  filter(st_intersects(x=.,y=st_as_sfc(st_bbox(crd)),sparse=FALSE)) %>% # subset road network by capital region bounding box
+  distinct(.keep_all = TRUE) #remove duplicate edges
 
 
 ### read in a-spatial strava counts aggregated by road geometry and month
@@ -206,7 +206,6 @@ e_m_total <- e_m_total %>%
     "September 2017")))
 
 ### Conflate ICBC crashes with road geometry
-source(paste0(getwd(),"/R/functions/st_snap_points.R"))
 #snap points to nearest road link (max distance =30m)
 icbc_snp <- st_snap_points(icbc_sf,e,max_dist = 30)
 icbc_snp <- st_sf(icbc_sf %>%
@@ -268,57 +267,22 @@ e_o_total <- e_o_total %>%
          avg_annual_daily_tactn = total_tactn/638) %>%
   mutate(CAADB = 40 + avg_annual_daily_tactn*50)  #(Roy et al 2019/Jestico et al 2016)
 
+#################### 3. Create Lixelized Network ####################
 
+network_sln <- SpatialLinesNetwork(e_o_total)
+network_sln <- sln_clean_graph(network_sln)# Remove unconnected roads
 
+### Lixelize cleaned network data
 
-
-#################### 3. Aggregate Exposure/Crashes by Census Tract ####################
-
-i <- read_sf(paste0(getwd(),"/input/exposure/STRAVA/Nodes/victoria_osm_edges_nodes.shp")) %>%
-               st_transform(crs = 26910)
-#ibims outline
-i <- i[st_as_sfc(
-  st_bbox(
-    crd_ct %>%
-      filter(`Region Name` == "Saanich" |
-               `Region Name` == "Oak Bay" |
-               `Region Name` == "Victoria" |
-               `Region Name` == "Esquimalt" ))),]
-
-int_t_counts <- read_csv(file = paste0(getwd(),"/input/exposure/STRAVA/Nodes/victoria_201601_201709_ride_nodes_rollup_total.csv"))
-
-i <- i %>% left_join(int_t_counts, by = c("ID"="node_id")) %>%
-  replace_na(list(actcnt=0))
-
-i_ct_agg <- st_join(i,crd_ct["GeoUID"],join = st_intersects) %>%
-  group_by(GeoUID) %>%
-  summarise(n_int = n(),
-            actcnt = sum(actcnt)) %>%
-  st_drop_geometry()
-
-bm_ct_agg <- st_join(bm,crd_ct["GeoUID"],join = st_intersects) %>%
-  group_by(GeoUID) %>%
-  summarise(n_bm_crashes = sum(p_type=="collision"),
-            n_nearmiss = sum(p_type=="nearmiss")) %>%
-  st_drop_geometry()
-
-icbc_ct_agg <- st_join(icbc_sf,crd_ct["GeoUID"],join = st_intersects) %>%
-  group_by(GeoUID) %>%
-  summarise(n_crashes = sum(CRASHES)) %>%
-  st_drop_geometry()
-
-crd_ct <- crd_ct %>% left_join(i_ct_agg, by ="GeoUID") %>%
-  left_join(bm_ct_agg,by = "GeoUID") %>%
-  left_join(icbc_ct_agg,by = "GeoUID") %>%
-  mutate(
-    all_crashes = n_crashes + n_bm_crashes,
-    all_incidents = n_crashes + n_bm_crashes + n_nearmiss)
-crd_ct <- crd_ct %>% mutate(adj_actcnt = actcnt/n_int)
-
-plot(crd_ct[c("actcnt","adj_actcnt")])
+lixel_list_10m <- lixelize_network(
+  sf_network = network_sln@sl,
+  max_lixel_length = 10
+)
 
 
 #################### 5. Write to Shapefile ####################
+
+st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
 st_write(e_o_total,paste0(getwd(), "/input/processed/","edge_ec_201601_201709_total.gpkg"))
 
