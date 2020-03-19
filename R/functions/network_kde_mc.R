@@ -1,40 +1,3 @@
-library(purrr)
-library(doParallel)
-library(foreach)
-library(igraph)
-library(tidygraph)
-library(tidyr)
-library(dplyr)
-library(sf)
-library(stplanr)
-library(spdep)
-file.sources = list.files(path = paste0(getwd(),"/R/functions/Good Copies/"),pattern="*.R$",full.names = TRUE)
-sapply(file.sources,source,.GlobalEnv)
-
-### Load data
-
-
-point_process <- read_sf(paste0(getwd(),"/input/processed/inc_bm_201601_201709_snp_30m.gpkg"))
-study_area <- read_sf(paste0(getwd(),"/input/processed/census_ct_ec_201601_201709_total.gpkg"))
-network_vic <- read_sf(paste0(getwd(),"/input/processed/edge_ec_201601_201709_total.gpkg")) %>%
-  distinct(.keep_all = TRUE) 
-
-network_vic <- network_vic[study_area %>% filter(Region.Name=="Victoria"),]
-  
-### Clean Network Data
-
-network_sln = SpatialLinesNetwork(network_vic)
-network_sln <- sln_clean_graph(network_sln)# Remove unconnected roads
-
-### Lixelize cleaned network data
-
-lixel_list <- lixelize_network(
-  sf_network = network_sln@sl,
-  max_lixel_length = 10
-)
-
-rm(list = c("study_area","network_vic","network_sln"))
-
 network_kde_lisa <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attribute=1,point_process_is_lixel_midpoint=FALSE,nsim=99,spatial_lag=1){
   #1. Create segement base linear reference system from original road network
 
@@ -219,7 +182,7 @@ system.time({
   kde_Ii <- lapply(1:length(bandwidth), function(x) Ii(st_drop_geometry(network_kde)[,paste0("kde_bw_",bandwidth)[x]],sw))
   names(kde_Ii) <-  paste0("kde_bw_",bandwidth)
   for(i in 1:length(kde_Ii)){ names(kde_Ii[[i]]) <- paste0(names(kde_Ii)[i],"_",names(kde_Ii[[i]]))}
-  
+
   #################### Monte Carlo Simulation ############
 
   print("Simulating Accident Locations...")
@@ -274,30 +237,30 @@ system.time({
     d_cols <- as.data.frame(do.call(cbind,d_list))
     d_cols <- cbind(LIXID[[x]],d_cols)
     names(d_cols) <- c("LIXID",paste0("kde_bw_",bandwidth))
-    
-    
+
+
     return(d_cols)})
 
 
 
   #sum densities over all lixels
   sim_kde_list <-map(d_cols_list,
-                             ~left_join(target_lixel_no_geom %>% 
+                             ~left_join(target_lixel_no_geom %>%
                                                       select(LIXID),
                                                     .,
-                                                    by="LIXID")) %>% 
-   map(~replace(., is.na(.), 0) %>% 
-                 group_by(LIXID) %>%  
-                 summarise_each(list(~sum(.))) %>% 
+                                                    by="LIXID")) %>%
+   map(~replace(., is.na(.), 0) %>%
+                 group_by(LIXID) %>%
+                 summarise_each(list(~sum(.))) %>%
                  select(-LIXID))
-               
-  
+
+
   sim_kde_Ii <- map(sim_kde_list,~apply(.,2, function(x) Ii(x,sw)[,1]))
   sims_kde_Ii_df <- as_tibble(do.call("cbind", sim_kde_Ii),.name_repair = "universal")
   sims_kde_Ii_bw <- lapply(1:length(bandwidth),
-         function(x){sims_kde_Ii_df %>% 
+         function(x){sims_kde_Ii_df %>%
              select(starts_with(paste0("kde_bw_",bandwidth,"...")[x]))})
-  
+
   obs_Ii <- lapply(kde_Ii, "[", 2)
   obs_sim_Ii <- map2(obs_Ii,sims_kde_Ii_bw,cbind)
   xrank <- map(obs_sim_Ii,~apply(., 1, function(x) rank(x)[1]))
@@ -308,7 +271,7 @@ system.time({
   names(pval) <- paste0("pvalue_",names(pval))
   network_kde <- bind_cols(network_kde,kde_Ii)
   network_kde <- bind_cols(network_kde,pval)
-  
+
 
   return(network_kde)
 }

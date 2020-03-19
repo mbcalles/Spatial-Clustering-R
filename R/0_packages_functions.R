@@ -1,4 +1,5 @@
 #################### Load Packages ####################
+library(purrr)
 library(doParallel)
 library(foreach)
 library(igraph)

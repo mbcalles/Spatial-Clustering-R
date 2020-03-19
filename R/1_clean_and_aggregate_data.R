@@ -286,7 +286,7 @@ st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
 st_write(e_o_total,paste0(getwd(), "/input/processed/","edge_ec_201601_201709_total.gpkg"))
 
-st_write(e_m_total,paste0(getwd(), "/input/processed/","edge_ec_201601_201709_monthly.gpkg"))
+# st_write(e_m_total,paste0(getwd(), "/input/processed/","edge_ec_201601_201709_monthly.gpkg"))
 
 st_write(bm_snp,paste0(getwd(), "/input/processed/","inc_bm_201601_201709_snp_30m.gpkg"))
 

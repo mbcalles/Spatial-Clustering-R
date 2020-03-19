@@ -1,22 +1,9 @@
 
-### Load data
+####################  read in processed data ####################
 
-network_vic <- read_sf(paste0(getwd(),"/input/processed/edge_ec_201601_201709_total.gpkg")) %>%
-  distinct(.keep_all = TRUE)
 bikemaps <- read_sf(paste0(getwd(),"/input/processed/inc_bm_201601_201709_snp_30m.gpkg"))
-study_area <- read_sf(paste0(getwd(),"/input/processed/census_ct_ec_201601_201709_total.gpkg"))
-
-### Clean Network Data
-
-network_sln = SpatialLinesNetwork(network_vic)
-network_sln <- sln_clean_graph(network_sln)# Remove unconnected roads
-
-### Lixelize cleaned network data
-
-lixel_list_10m <- lixelize_network(
-  sf_network = network_sln@sl,
-  max_lixel_length = 10
-  )
+study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg"))
+list_list_10m <- load(paste0(getwd(),"/input/processed/lixel_list_edge_ec_201601_201709_total.RData"))
 
 
 n_cores <- bigstatsr::nb_cores()
