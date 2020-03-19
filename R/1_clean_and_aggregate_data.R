@@ -280,7 +280,7 @@ lixel_list_10m <- lixelize_network(
 )
 
 
-#################### 5. Write to Shapefile ####################
+#################### 4. Write Data ####################
 
 st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
@@ -292,4 +292,4 @@ st_write(bm_snp,paste0(getwd(), "/input/processed/","inc_bm_201601_201709_snp_30
 
 st_write(icbc_snp,paste0(getwd(), "/input/processed/","inc_icbc_201601_201709_snp_30m.gpkg"))
 
-
+save(lixel_list_10m, file="lixel_list_edge_ec_201601_201709_total.RData")
