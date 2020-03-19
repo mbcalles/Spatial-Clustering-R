@@ -3,5 +3,4 @@
 .RData
 .Ruserdata
 /input/exposure/
-/input/crashes/
-
+/input/processed/edge_ec_201601_201709_monthly.gpkg
