@@ -17,6 +17,7 @@ system.time({
                                  point_process_is_lixel_midpoint = FALSE)
 })
 
+
 #KDE for BikeMaps incidents, with Moran's I significance
 
 system.time({
