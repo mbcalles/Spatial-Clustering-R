@@ -5,7 +5,6 @@ bikemaps <- read_sf(paste0(getwd(),"/input/processed/inc_bm_201601_201709_snp_30
 study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg"))
 list_list_10m <- load(paste0(getwd(),"/input/processed/lixel_list_edge_ec_201601_201709_total.RData"))
 
-
 n_cores <- bigstatsr::nb_cores()
 
 #KDE for BikeMaps incidents
