@@ -22,7 +22,7 @@ crd <- crd_ct %>%
 
 ### read icbc data
 
-icbc <- read_csv(paste0(getwd(),"/input/crashes/ICBC 2014_2017/CRD_Dated.csv")) %>%
+icbc <- read_csv("input/crashes/ICBC 2014_2017/CRD_Dated.csv")) %>%
   mutate(date2 = ymd(date)) %>%
   unite(date_name,Month,Year, sep = " ",remove=FALSE) %>%
   select(-X1) %>%
@@ -75,7 +75,7 @@ bm <- readLines('https://bikemaps.org/incidents.json') %>%  #Read in data from w
 
 
 ### read strava road shapefile as simple feature
-e <- read_sf(paste0(getwd(),"/input/exposure/STRAVA/Edges/victoria_osm_edges.shp")) %>%
+e <- read_sf("input/exposure/STRAVA/Edges/victoria_osm_edges.shp")) %>%
   st_transform(crs = 26910) %>% #transform projection to NAD 83 UTM Zone10N
   filter(CLAZZ!=1) %>% #remove ferry routes
   filter(st_intersects(x=.,y=st_as_sfc(st_bbox(crd)),sparse=FALSE)) %>% # subset road network by capital region bounding box

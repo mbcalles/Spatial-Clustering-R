@@ -116,7 +116,6 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   cl <- makeCluster(n_cores)
   registerDoParallel(cores=cl) #parallel computing
 
-  start_time <- Sys.time()
   distances <- foreach::foreach(i = 1:length(nearest_node_to_source_lixel),.packages = c("magrittr","igraph","tidygraph")) %dopar% {
     temp <- distances(
       graph = graph,
@@ -127,9 +126,6 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
     data.frame(LIXID = lxcenters[temp<=max(bandwidth),]$LIXID,
                dist = temp[temp<=max(bandwidth)])
   }
-  end_time <- Sys.time()
-
-  print(end_time - start_time)
 
   stopCluster(cl)
 
