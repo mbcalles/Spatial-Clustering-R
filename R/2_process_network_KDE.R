@@ -55,13 +55,13 @@ system.time({
 })
 
 #write bikemaps kernel density to geopackage
-write_sf(bm_network_kde$network_kde,paste0(getwd(),"/output/","bikemaps_kde_10m_lixel_50m_500m_bw.gpkg"))
+write_sf(bm_network_kde$network_kde,"output/bikemaps_kde_10m_lixel_50m_250m_bw.gpkg")
 #write nearest neighbour list to .RData
-saveRDS(bm_network_kde$neighbours, file=paste0(getwd(),"/output/","bikemaps_neighbour_list_10m_lixel_500m.rdata"))
+# saveRDS(bm_network_kde$neighbours, file=paste0(getwd(),"/output/","bikemaps_neighbour_list_10m_lixel_500m.rdata"))
 
 
 #write exposure kernel density to geopackage
-write_sf(exp_network_kde$network_kde,paste0(getwd(),"/output/","strava_kde_10m_lixel_50m_500m_bw.gpkg"))
+write_sf(exp_network_kde$network_kde,"output/strava_kde_10m_lixel_50m_250m_bw.gpkg")
 #write nearest neighbour list to .RData
-saveRDS(exp_network_kde$neighbours, file=paste0(getwd(),"/output/","strava_neighbour_list_10m_lixel_500m.rdata"))
+# saveRDS(exp_network_kde$neighbours, file=paste0(getwd(),"/output/","strava_neighbour_list_10m_lixel_500m.rdata"))
 
