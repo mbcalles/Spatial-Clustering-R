@@ -56,7 +56,7 @@ library(mapview)
 file.sources = list.files(path = paste0(getwd(),"/R/functions/"),pattern="*.R$",full.names = TRUE)
 sapply(file.sources,source,.GlobalEnv)
 
-study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg"))
+study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg")) %>% st_union()
 
 network <- read_sf(paste0(getwd(),"/input/processed/edge_ec_201601_201709_total.gpkg"))
 
@@ -142,7 +142,7 @@ mapview(incident_hotspots,alpha.regions=0.25)
 ### Hotspots Map by Threshold and Bandwidth
 
 ```{r,fig.align = "center",fig.cap="Hotspots for incidents reported to BikeMaps.org by bandwidth size, and percentile threshold"}
-#Plot in ggplot2
+
 incident_hotspots_cmbnd <- do.call(what = sf:::rbind.sf, args = incident_hotspots) %>% 
   mutate(bw = row.names(.)) %>% 
   separate(col = bw,into = c("bw",NA)) %>% 
@@ -408,7 +408,7 @@ ggplot()+
 - We compare hotspots derived by taking the top 10%, 5%, 1% and 0.1% of lixel density values
 
 ```{r}
-exposure_network_kde <- read_sf(paste0(getwd(),"/output/strava_kde_10m_lixel_50m_500m_bw.gpkg"))
+exposure_network_kde <- read_sf(paste0(getwd(),"/output/strava_kde_10m_lixel_50m_250m_bw.gpkg"))
 
 risk_network_kde <- left_join(inc_network_kde,
                               exposure_network_kde %>% st_drop_geometry(),
@@ -416,14 +416,17 @@ risk_network_kde <- left_join(inc_network_kde,
 risk_network_kde <- risk_network_kde %>% 
   mutate(risk_kde_bw_50 = kde_bw_50.x/kde_bw_50.y,
          risk_kde_bw_100 = kde_bw_100.x/kde_bw_100.y,
-         risk_kde_bw_250 = kde_bw_250.x/kde_bw_250.y,
-         risk_kde_bw_500 = kde_bw_500.x/kde_bw_500.y
+         risk_kde_bw_150 = kde_bw_150.x/kde_bw_150.y,
+         risk_kde_bw_250 = kde_bw_250.x/kde_bw_250.y
   )
 
 
-cols_vec <- c("risk_kde_bw_50","risk_kde_bw_100","risk_kde_bw_250","risk_kde_bw_500")
+cols_vec <- c("risk_kde_bw_50","risk_kde_bw_100","risk_kde_bw_150","risk_kde_bw_250")
 
-risk_network_hotspots <- lapply(cols_vec, function(x) detect_network_hotspot(risk_network_kde,x,percentiles = c(0.90,0.95,0.99,0.999)))
+risk_network_hotspots <- lapply(cols_vec, 
+                                function(x) detect_network_hotspot(risk_network_kde,
+                                                                   x,
+                                                                   percentiles = c(0.90,0.95,0.99,0.999)))
 names(risk_network_hotspots) <- bandwidth
 
 #interactive plot
