@@ -1,0 +1,546 @@
+---
+title: ''
+author: "Michael Branion-Calles"
+date: "March 3, 2020"
+output: 
+  html_document:
+    code_folding: hide 
+    fig_width: 7
+    fig_height: 7
+    toc: true
+    toc_float:
+      theme: 
+      collapsed: false
+      smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# Background
+
+Hotspot in traffic safety context is a location where there are more unsafe incidents occurring than is normal. 
+
+- The road system can be conceptualised as consisting of three components: the environment, the road users and their vehicles (Haddon, 1980; Sayed et al., 1995).
+
+- Different factors within these components will interact in space and time to contribute causally to a given crash that occurs in the system. Spatial patterns of crashes that have occurred within a broader region and time period are therefore realizations of underlying spatial processes, in which crash risk factors related to road environment, road user and vehicles are spatially heterogeneous.
+
+- The areas in which there are frequently occurring crashes represent areas of high crash burden, whereas risky areas are place where there are a higher probability of a crash occurring, relative to the number of opportunities (i.e. road users interacting in that space) for a crash to occur (Fuller and Morency, 2013). Measurements of the number of opportunities for a crash to occur is often referred to as “exposure” and are a fundamental data requirement in analysis of risk. Without exposure data, spatial analysis of where crashes occur will identify areas with a higher probability of a crash, but necessarily a higher risk, since it will not control for the amount of traffic.
+
+- Here we define hotspots as a location where the probability or risk of a crash is much higher than the rest of the study area. 
+
+- The detection of spatial hotspots is both the first step in understanding the spatial processes that contribute towards risky or burdensome locations in a jurisdiction, and a simple method for defining problem areas with minimal data requirements.
+
+- In road safety, there is a distinction between crash burden and crash risk. 
+  - The first aim of this paper is to review commonly used methods for detecting spatial hotspots in road safety, including kernel density estimators and local measures of spatial association. 
+  - The second aim of this paper is to apply these techniques to a case study of bicycling safety data and compare the results. 
+
+# Case Study Data
+
+
+- IBIMS region as study area 
+- Strava Metro Counts as Exposure
+- BikeMaps near misses and collisions as incidents
+  - ICBC left out due to snapping of incidents to nearest intersection or midblock, gives a potentially very misleading view of the spatial distribution of crashes, which will become more problematic with network kernel density techniques
+
+
+```{r setup, include = FALSE,warning=FALSE,message=FALSE}
+library(knitr)
+library(stplanr)
+library(mapview)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(spdep)
+#load functions
+file.sources = list.files(path = "R/functions",pattern="*.R$",full.names = TRUE)
+sapply(file.sources,source,.GlobalEnv)
+
+
+
+### Load data
+network <-read_sf(paste0(getwd(),"/input/processed/edge_ec_201601_201709_total.gpkg"))
+incidents <- read_sf(paste0(getwd(),"/input/processed/inc_bm_201601_201709_snp_30m.gpkg"))
+study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg"))
+
+### Clean Network Data
+network  <- SpatialLinesNetwork(network)
+network <- sln_clean_graph(network)@sl# Remove unconnected roads
+
+network$total_bm_incidents <- network$total_bm_crashes + network$total_nearmiss
+network$total_bm_incident_rate <- network$total_bm_incidents / network$CAADB * 1000
+```
+
+## Incidents
+```{r}
+ggplot() +
+  geom_sf(data = network,color="lightgrey",alpha=0.05)+
+  geom_sf(data = incidents,aes(color=p_type),show.legend = "point")+
+  scale_color_brewer(name = "Incident Type",
+                     type = "qual")+
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") +
+  ggtitle("Bicycling Incidents in the Victoria Region: \nJanuary 2016 - September 2017")
+
+ggplot() +
+  geom_sf(data =network,aes(color=total_all_incidents,
+                                       size=total_all_incidents),show.legend = "line") +
+  scale_color_gradient(name = c("N Crashes"),
+                        breaks = c(0,1,2,3,4),
+                       low = "lightgrey", high = "red") +
+  scale_size_continuous(name = c("N Crashes"),
+                        range = c(0.01,2),
+                        breaks = c(0,1,2,3,4)) +
+        guides(color= guide_legend(), size=guide_legend()) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left")  +
+  ggtitle("BikeMaps.org Incidents Aggregated to Polylines: \nJanuary 2016 - September 2017")
+```
+
+
+
+## Exposure
+
+```{r}
+
+ggplot() +
+  geom_sf(data = network,aes(color=CAADB,
+                                       size=CAADB),show.legend = "line") +
+    scale_color_gradient(limits = c(0,6100),
+                          breaks = c(0,1000,2000,3000,4000,5000),
+                          low = "lightgrey", high = "red",                            
+                          name = "Bicycle\ncounts") +
+    scale_size_continuous(range = c(0.01,2),
+                          limits = c(0,6100),
+                          breaks = c(0,1000,2000,3000,4000,5000),
+                          name = "Bicycle\ncounts") +
+      guides(color= guide_legend(), size=guide_legend()) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") + 
+  ggtitle("Expanded Strava Counts: \nJanuary 2016 - September 2017")
+
+```
+
+# Local Measures of Spatial Assocation
+
+- Measures the similarity of a specific atribute between a spatial unit and its neighbours (clusters). 
+- Can be used to identify spatial hotspots based on detecting spatial units with outlier high values 
+- How to define which road segments are neighbours? 
+
+## Defining neighbours: Adjacency
+
+- Every road segment has an end and start node representing the ends of the segment. We define adjacency of road segments on whether they share a node. 
+  - For each road segment we define their neighbouring segments as those that share a node, formalized in a adjacency matrix where $wij$ = 1 for road segments that share a node (adjacent), and are 0 if they do not
+  - We  adjacency matrix where wij = 1 for regions that are adjacent, otherwise wij =0.
+  - We can enlarge the number of road segments that count as neighbours by addingthe neighbors of j to the neighborhood of i (lags).
+- We test adjacency lags from 1 to 3. 
+
+# Local Moran's I
+
+$$I_i =\frac{Y_i-\bar{Y}}{s} \sum_{j=1}^n{w_{ij}\frac{Y_j-\bar{Y}}{s}}$$
+
+Where,
+
+- $Y_i$ is the variable of interest for road segment $i$ for $i$ = (1,...,$n$)
+
+- $Y_j$ is the variable of interest for neighbouring road segment $j$ for $j$ = (1,...,$n$)
+
+- $\bar{Y}$ is the average of the variable interest across all road segments
+
+- $w_{ij}$ is the spatial weights matrix which specifies the relationship between road segments $i$ and $j$
+
+  - Positive values of $I_i$ represent clusters of high-high (I'm high and my neighbours are high) or low-low clusters (I'm low and my neighbours are low), and negative values represent values of high-low (I'm high but my neighbours are low) or low-high (I'm low but my neighbours are high)
+
+  - To identify statistically unusual outliers of clusters we use a conditional permutation approach:
+    - Holding $Yi$ fixed, shuffle the values of $Yj$ and compute the statistics a specified number of times
+    - Rank the observed value of $I_i$ to the distribution of values created through permutation, to obtain pseudo-significnace
+    - e.g. if largest value compared to 1000 permutations the pseudo significance would be ~0.001
+
+- Wrote custom functions to convert topological relationships from network geometric operations to nb object from [sp](https://r-spatial.github.io/spdep/index.html) to be able to quickly calculate spatial weights matrices
+- Wrote custom function to conduct monte-carlo conditional permutation psuedo significance 
+
+```{r,warning=FALSE,message=FALSE}
+### Define Spatial Relationships 
+#### Adjacency (Lag 1)
+
+nb_adj_lag1 <- sfl_to_nb_spadj(network,spatial_lag = 1)
+sw_lag1 <- nb2listw(nb_adj_lag1,style = "C",zero.policy = TRUE)
+
+### Adjacency (Lag 2)
+
+nb_adj_lag2 <- sfl_to_nb_spadj(network,spatial_lag = 2)
+sw_lag2 <- nb2listw(nb_adj_lag2,style = "C",zero.policy = TRUE)
+
+### Adjacency (Lag 3)
+
+nb_adj_lag3 <- sfl_to_nb_spadj(network,spatial_lag = 3)
+sw_lag3 <- nb2listw(nb_adj_lag3,style = "C",zero.policy = TRUE)
+
+
+# Local Moran's I, crashes only
+
+thresholds <- c(0.1,0.05,0.01,0.001)
+
+lmi_lag1 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incidents,sw_lag1,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 1"))
+ 
+lmi_lag1_bind <- do.call(rbind,lmi_lag1) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+lmi_lag2 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incidents,sw_lag2,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 2"))
+ 
+lmi_lag2_bind <- do.call(rbind,lmi_lag2) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+lmi_lag3 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incidents,sw_lag3,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 3"))
+ 
+lmi_lag3_bind <- do.call(rbind,lmi_lag3) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+lmi_bind <- rbind(lmi_lag1_bind,lmi_lag2_bind,lmi_lag3_bind)
+
+lmi_list <- list(lmi_lag1_bind,lmi_lag2_bind,lmi_lag3_bind) %>% 
+  purrr::map(~filter(.,cluster_type!="Insig."))
+names(lmi_list) <- c("Adjacency 1","Adjacency 2","Adjacency 3")
+```
+
+## Counts of Crashes
+
+- $Y_i$ corresponds to a count of the bikemaps incidents that occur on a given road segment
+
+- We test 3 adjacency neighbourhood definitions and 4 levels of pseudo significance to determine hotspots
+  - 0.1, 0.05, 0.01, 0.001
+
+### Moran's I Scatterplot
+```{r,warning=FALSE,message=FALSE}
+lmi_lag1[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 1")
+
+lmi_lag2[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 2")
+
+lmi_lag3[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 3")
+```
+
+### Significant Clusters
+```{r,warning=FALSE,message=FALSE}
+
+hotspots <- lmi_bind %>% 
+  filter(cluster_type!="Insig.") 
+
+ggplot() +
+  geom_sf(data=st_union(study_area),fill="snow1") +
+  geom_sf(data = hotspots,aes(color=cluster_type,size=cluster_type),show.legend = "line") +
+  scale_color_manual(name = c("Moran's I\nCluster"),
+                     values = c("#D7191C","#2B83BA","#ABDDA4","#FDAE61","lightgrey"),
+                     drop=FALSE) +
+  scale_size_manual(name = c("Moran's I\nCluster"),
+                    values = c(1,1,1,1,0.05),
+                    drop=FALSE) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") +
+  facet_grid(Adjacency_lag~Significance)
+
+
+mapview(lmi_list,zcol = list("Significance","Significance","Significance","Significance"))
+
+```
+
+## Crash Rates
+
+```{r,warning=FALSE,message=FALSE}
+
+# Local Moran's I, crashes only
+
+thresholds <- c(0.1,0.05,0.01,0.001)
+
+rate_lmi_lag1 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incident_rate,sw_lag1,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 1"))
+ 
+rate_lmi_lag1_bind <- do.call(rbind,rate_lmi_lag1) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+rate_lmi_lag2 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incident_rate,sw_lag2,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 2"))
+ 
+rate_lmi_lag2_bind <- do.call(rbind,rate_lmi_lag2) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+rate_lmi_lag3 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                         localmoran_mc(network$total_bm_incident_rate,sw_lag3,nsim = 999,sig_threshold = thresholds[x])) %>% 
+                 mutate(Significance = as.character(thresholds[x]), 
+                        Adjacency_lag = "Lag 3"))
+ 
+rate_lmi_lag3_bind <- do.call(rbind,rate_lmi_lag3) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+rate_lmi_bind <- rbind(rate_lmi_lag1_bind,rate_lmi_lag2_bind,rate_lmi_lag3_bind)
+
+rate_lmi_list <- list(rate_lmi_lag1_bind,rate_lmi_lag2_bind,rate_lmi_lag3_bind) %>% 
+  purrr::map(~filter(.,cluster_type!="Insig."))
+names(rate_lmi_list) <- c("Adjacency 1","Adjacency 2","Adjacency 3")
+```
+
+
+### Moran's I Scatterplot
+
+```{r,warning=FALSE,message=FALSE}
+rate_lmi_lag1[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 1")
+
+rate_lmi_lag2[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 2")
+
+rate_lmi_lag3[[1]] %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 3")
+```
+
+### Significant Clusters
+
+```{r,warning=FALSE,message=FALSE}
+
+rate_hotspots <- rate_lmi_bind %>% 
+  filter(cluster_type!="Insig.") 
+
+ggplot() +
+  geom_sf(data=st_union(study_area),fill="snow1") +
+  geom_sf(data = rate_hotspots,aes(color=cluster_type,size=cluster_type),show.legend = "line") +
+  scale_color_manual(name = c("Moran's I\nCluster"),
+                     values = c("#D7191C","#2B83BA","#ABDDA4","#FDAE61","lightgrey"),
+                     drop=FALSE) +
+  scale_size_manual(name = c("Moran's I\nCluster"),
+                    values = c(1,1,1,1,0.05),
+                    drop=FALSE) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") +
+  facet_grid(Adjacency_lag~Significance)
+
+
+mapview(rate_lmi_list,zcol = list("Significance","Significance","Significance","Significance"))
+```
+
+
+# Local Moran's I, constant risk hypothesis
+
+$$ =\frac{Y_i-rn_i}{\sqrt{rn_i}} \sum_{j=1}^n{w_{ij}\frac{Y_j-rn_j}{\sqrt{rn_j}}}$$
+
+Where,
+
+$Y_i$ is the count of incidents reported to BikeMaps.org
+$n_i$ is the exposure estimate (population at risk)
+$r$ is the overall incidence rate = $\sum_{i=1}^{n}{Y_i} / \sum_{i=1}^{n} n_i$
+
+This version of Moran's I assumed that the crash counts at a given road segment are independent Poisson random variables, the probablity for any observed crash count $Y_i$ using the Poisson distribution. $E_i$ = $\sum_{i=1}^{n}{Y_i} / \sum_{i=1}^{n} n_i$, where $n_i$ = an estimate of exposure. 
+
+In this manner, $I_{i,cr}$ assesses deviations in crash counts from expected counts based on exposure counts.  
+
+- "$I_{cr}$ summarizes the spatial similarity in the discrepancy of each regional count with its expectation under the constant risk hypothesis. $I_{cr}$ allows for heterogeneity in regional variation from the regional mean, based on an assumed underlying Poisson probability distribution. The specification of regional variations appears to provide additional local precision in assessing the spatial similarity of statistically unusual counts." (Waller and Gotway 2004, p. 233)
+
+```{r,warning=FALSE,message=FALSE}
+
+cr_lag1 <-  lapply(1:length(thresholds), function(x) bind_cols(network,
+                                                               localmoran_cr_mc(event = network$total_bm_incidents,
+                                                                                exposure = network$CAADB,
+                                                                                sw = sw_lag1,
+                                                                                nsim = 999,
+                                                                                sig_threshold=thresholds[x])) %>% 
+                     mutate(Significance = as.character(thresholds[x]), 
+                            Adjacency_lag = "Lag 1"))
+
+ 
+cr_lag1_bind <- do.call(rbind,cr_lag1) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+cr_lag2 <-  lapply(1:length(thresholds), 
+                   function(x) bind_cols(network,
+                                         localmoran_cr_mc(event = network$total_bm_incidents,
+                                                          exposure = network$CAADB,
+                                                          sw = sw_lag2,nsim = 999,
+                                                          sig_threshold=thresholds[x])) %>% 
+                     mutate(Significance = as.character(thresholds[x]), 
+                            Adjacency_lag = "Lag 2"))
+
+ 
+cr_lag2_bind <- do.call(rbind,cr_lag2) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+
+cr_lag3 <-  lapply(1:length(thresholds), 
+                   function(x) bind_cols(network,
+                                         localmoran_cr_mc(event = network$total_bm_incidents,
+                                                          exposure = network$CAADB,
+                                                          sw = sw_lag3,nsim = 999,
+                                                          sig_threshold=thresholds[x])) %>% 
+                     mutate(Significance = as.character(thresholds[x]), 
+                            Adjacency_lag = "Lag 3"))
+
+ 
+cr_lag3_bind <- do.call(rbind,cr_lag3) %>% 
+  mutate(Significance = factor(Significance, levels = c("0.1","0.05","0.01","0.001")))
+
+
+cr_bind <- rbind(cr_lag1_bind,cr_lag2_bind,cr_lag3_bind)
+
+cr_list <- list(cr_lag1_bind,cr_lag2_bind,cr_lag3_bind) %>% 
+  purrr::map(~filter(.,cluster_type!="Insig."))
+names(cr_list) <- c("Adjacency 1","Adjacency 2","Adjacency 3")
+```
+
+## Moran's I Scatterplots
+
+```{r,warning=FALSE,message=FALSE}
+cr_lag1[[1]] %>% 
+  st_drop_geometry() %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 1")
+
+
+cr_lag2[[1]] %>% 
+  st_drop_geometry() %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 2")
+
+
+cr_lag3[[1]] %>% 
+  st_drop_geometry() %>% 
+  ggplot(aes(x=z)) + geom_point(aes(y=lag_z),alpha = 0.25) + 
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) + 
+  stat_smooth(aes(y=lag_z),method = "lm",color="red",size=1.15,alpha = 0.5,linetype = "dashed",se = FALSE) +
+  theme_minimal() +
+  ggtitle("Lag 3")
+```
+
+## Significant Cluster's
+
+```{r,warning=FALSE,message=FALSE}
+hotspots <- cr_bind %>% 
+  filter(cluster_type!="Insig.") 
+
+ggplot() +
+  geom_sf(data=st_union(study_area),fill="snow1") +
+  geom_sf(data = hotspots,aes(color=cluster_type,size=cluster_type),show.legend = "line") +
+  scale_color_manual(name = c("Moran's I\nCluster"),
+                     values = c("#D7191C","#2B83BA","#ABDDA4","#FDAE61","lightgrey"),
+                     drop=FALSE) +
+  scale_size_manual(name = c("Moran's I\nCluster"),
+                    values = c(1,1,1,1,0.05),
+                    drop=FALSE) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") +
+  facet_grid(Adjacency_lag~Significance)
+
+
+mapview(cr_list,zcol = list("Significance","Significance","Significance","Significance"))
+
+
+```
+
+# Moving forward...
+
+To do: 
+
+1. Quantify differences between hotspots as in KDE
+
+Options for further comparisons:
+
+1. Compare to Getis-Ord. Note, having some trouble getting this to work in R but confident I can figure it out eventually. 
+
+2. Implement distance based neighbourhood definitions
+
+
+
+
