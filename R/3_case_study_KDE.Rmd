@@ -56,19 +56,22 @@ library(mapview)
 file.sources = list.files(path = paste0(getwd(),"/R/functions/"),pattern="*.R$",full.names = TRUE)
 sapply(file.sources,source,.GlobalEnv)
 
-study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg")) %>% st_union()
+study_area <- read_sf(paste0(getwd(),"/input/processed/study_area.gpkg"))
 
-network <- read_sf(paste0(getwd(),"/input/processed/edge_ec_201601_201709_total.gpkg"))
+study_area_city <- read_sf(paste0(getwd(),"/input/processed/study_area_city.gpkg"))
 
-incidents <- read_sf(paste0(getwd(),"/input/processed/inc_bm_201601_201709_snp_30m.gpkg")) %>% 
-  filter(st_intersects(x = ., y = st_as_sfc(st_bbox(study_area)), sparse = FALSE))
+vic_city <- read_sf(paste0(getwd(),"/input/processed/city_of_victoria.gpkg"))
 
+network <- read_sf(paste0(getwd(),"/input/processed/edge_ec_total_crash_strava.gpkg"))
 
-ggplot() +
-  geom_sf(data = network,color="lightgrey",alpha=0.05)+
-  geom_sf(data = incidents,aes(color=p_type),show.legend = "point")+
-  scale_color_brewer(name = "Incident Type",
-                     type = "qual")+
+incidents <- read_sf(paste0(getwd(),"/input/processed/inc_bm_snp_30m.gpkg"))
+
+study_area_map <- ggplot() +
+  geom_sf(data = study_area_city,color="black",aes(fill=Region.Name),show.legend = "polygon") +
+  # geom_sf(data = vic_city,color="black",aes(fill=Region.Name),show.legend = "polygon") + 
+  scale_fill_manual(name = "",
+                    values = c("gray55","gray55","gray55",
+                                         "gray9")) +
   theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -77,7 +80,53 @@ ggplot() +
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),
-        legend.position = "left") + ggtitle("Bicycling Incidents in the Victoria Region: \nJanuary 2016 - September 2017")
+        legend.position = "bottom")
+ 
+
+ 
+ggsave(study_area_map,
+       width = 90,
+       height = 90,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "study_area.jpeg" )
+
+bikemaps_map <- ggplot() +
+  geom_sf(data = network,color="lightgrey",alpha=0.15)+
+  geom_sf(data = vic_city,color="black",fill = NA)+
+  geom_sf(data = incidents,aes(color=p_type),alpha=0.75,show.legend = "point")+
+  scale_color_brewer(name = "Incident Type",
+                     labels = c("Collision","Near Misses"),
+                     type = "qual") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),
+        legend.position = "left") + 
+  coord_sf(xlim = c(470834.0,476155.9),ylim = c(5361141.0,5366429.4))
+
+ggsave(bikemaps_map,
+       width = 180,
+       height = 180,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "incidents.jpeg" )
+
+incidents %>% 
+  group_by(p_type) %>% 
+  summarise(n = n(),
+            min_date= min(date),
+            max_date = max(date)
+            
+            )
 
 mapview(network,z="CAADB") + mapview(incidents, z= "p_type")
 
@@ -133,10 +182,15 @@ inc_planar <- lapply(1:length(bandwidth),function(x){
 
 inc_planar_r <- lapply(inc_planar,function(x) raster(x,crs = CRS('+init=EPSG:26910'))) #convert to raster file
 names(inc_planar_r) <-  bandwidth#convert to raster file
-incident_hotspots <- lapply(inc_planar_r, function(x) detect_planar_hotspot(x,percentiles = c(0.90,0.95,0.99,0.999)))
+
+inc_planar_r_vic <- lapply(inc_planar_r,function(x) crop(x,vic_city))
+inc_planar_r_vic <- lapply(inc_planar_r_vic,function(x) mask(x,vic_city))
+
+incident_hotspots <- lapply(inc_planar_r_vic, function(x) detect_planar_hotspot(x,percentiles = c(0.90,0.95,0.99,0.999)))
 
 #interactive plot
 mapview(incident_hotspots,alpha.regions=0.25)
+
 ```
 
 ### Hotspots Map by Threshold and Bandwidth
@@ -146,16 +200,15 @@ mapview(incident_hotspots,alpha.regions=0.25)
 incident_hotspots_cmbnd <- do.call(what = sf:::rbind.sf, args = incident_hotspots) %>% 
   mutate(bw = row.names(.)) %>% 
   separate(col = bw,into = c("bw",NA)) %>% 
-  mutate(bw=factor(bw,levels = as.character(bandwidth)))
+  mutate(bw=factor(bw,levels = as.character(bandwidth))) %>% 
+  filter(layer == 0.99)
 
 pal <- RColorBrewer::brewer.pal(6,name = "Reds")[-(1:2)]
 
-ggplot()+
-  geom_sf(data=st_union(study_area),fill="snow1") +
-  geom_sf(data=incident_hotspots_cmbnd,aes(fill=layer,colour=layer)) +
-  scale_colour_manual(values = pal) + 
-  scale_fill_manual(values = pal) + 
-  facet_grid(bw~layer) +
+planar_hotspot <- ggplot()+
+  geom_sf(data=vic_city,fill="snow1") +
+  geom_sf(data=incident_hotspots_cmbnd,fill ="darkred",color="darkred") +
+  facet_wrap(~bw) +
   theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -164,8 +217,18 @@ ggplot()+
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),legend.position = "none") +
-  coord_sf() + 
-  ggtitle("Incident Kernel Density: By Threshold (Columns) & Bandwidth (rows)")
+  coord_sf()
+
+
+ 
+ggsave(planar_hotspot,
+       width = 240,
+       height = 240,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "planar_hotspot.jpeg" )
 ```
 
 ### Quantifying differences
@@ -182,15 +245,12 @@ qe <- tibble(threshold = incident_hotspots_cmbnd$layer,
        n = sapply(hs,FUN = nrow))
 
 qe %>% 
-  select(threshold,bandwidth,n) %>% 
-  pivot_wider(names_from = bandwidth,values_from = n) %>% 
   knitr::kable()
 ```
 
 - Number of hotspots by threshold and bandwidth
   - Larger bandwidth results in less distinct hotspots (e.g instead of many distinct hotspots, few larger hotspots)
-  - Higher threshold results in fewer hotspots (generally) but this difference is much more pronounced for smaller bandwidths than for larger ones
-    - e.g. 6 distinct hotspots for a 500m bandwidth with 90% threshold, compared to 1 with 99.9% threshold. Compare this with 2302 distinct hotspots for a 50m bandwidth with a 90% threshold and 13 for a 99.9% threshold 
+    - e.g. 2 distinct hotspots for a 500m bandwidth with 90% threshold, compared to 1 with 99.9% threshold. Compare this with 2302 distinct hotspots for a 50m bandwidth with a 90% threshold and 13 for a 99.9% threshold 
 
 ```{r}
 
@@ -232,13 +292,14 @@ $$\lambda(z)= \sum_{i=1}^{n} \frac{1}{\tau}(\frac{3}{\pi}(1-\frac{d_{iz}^2}{\tau
 
 ```{r}
 
-inc_network_kde <- read_sf(paste0(getwd(),"/output/bikemaps_kde_10m_lixel_50m_250m_bw.gpkg"))
+inc_network_kde <- read_sf(paste0(getwd(),"/output/bikemaps_network_kde_10m_lixel_50m_250m_bw.gpkg"))
+
+inc_network_kde <- inc_network_kde %>% 
+  filter(st_intersects(x=.,y=st_as_sfc(st_bbox(vic_city)),sparse=FALSE)) # subset bikemaps by captial region boundary
 
 cols_vec <- c("kde_bw_50","kde_bw_100","kde_bw_150","kde_bw_250")
-
 inc_network_hotspots <- lapply(cols_vec, function(x) detect_network_hotspot(inc_network_kde,x,percentiles = c(0.90,0.95,0.99,0.999)))
 names(inc_network_hotspots) <- bandwidth
-
 #interactive plot
 mapview(inc_network_hotspots,zcol=list("thresholds","thresholds","thresholds","thresholds"))
 ```
@@ -252,14 +313,13 @@ pal <- RColorBrewer::brewer.pal(6,name = "Reds")[-(1:2)]
 inc_network_hotspots_cmbnd <- do.call(what = sf:::rbind.sf, args = inc_network_hotspots) %>% 
   mutate(bw = row.names(.)) %>% 
   separate(col = bw,into = c("bw",NA)) %>% 
-  mutate(bw = factor(bw, levels = as.character(bandwidth)))
+  mutate(bw = factor(bw, levels = as.character(bandwidth))) %>% 
+  filter(thresholds==0.99)
 
-ggplot()+
-  geom_sf(data=st_union(study_area),fill="snow1") +
-  geom_sf(data=inc_network_hotspots_cmbnd,aes(fill=thresholds,colour=thresholds)) +
-  scale_colour_manual(values = pal) + 
-  scale_fill_manual(values = pal) + 
-  facet_grid(bw~thresholds) +
+network_hotspot <- ggplot()+
+  geom_sf(data=vic_city,fill="snow1") +
+  geom_sf(data=inc_network_hotspots_cmbnd,color="darkred") +
+  facet_wrap(~bw) +
   theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -268,9 +328,18 @@ ggplot()+
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),legend.position = "none") +
-  coord_sf() + 
-  ggtitle("Network Kernel Density: Percentile Threshold (Columns), Bandwidth (rows)")
+  coord_sf()
 
+
+ 
+ggsave(network_hotspot,
+       width = 240,
+       height = 240,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "network_hotspot.jpeg" )
 ```
 
 
@@ -356,7 +425,9 @@ exp_planar <- lapply(1:length(bandwidth),function(x){
 
 
 #recale exposure density to be positive values
-exp_planar_r <- lapply(exp_planar,function(x) raster(x,crs = CRS('+init=EPSG:26910'))) #convert to raster file
+exp_planar_r <- lapply(exp_planar,
+                       function(x) raster(x,crs = CRS('+init=EPSG:26910'))) #convert to raster file
+
 for(i in 1:length(exp_planar_r)) {
   if(any(exp_planar_r[[i]]@data@values<0,na.rm=TRUE)){
     exp_planar_r[[i]]@data@values <- scales::rescale(exp_planar_r[[i]]@data@values,
@@ -365,11 +436,15 @@ for(i in 1:length(exp_planar_r)) {
   }
 
 ## Divide incident raster surface by exposure planar surface
-
 risk_planar <- mapply(`/`,inc_planar_r,exp_planar_r)
 
+risk_planar <- lapply(risk_planar,function(x) crop(x,vic_city))
+risk_planar <- lapply(risk_planar,function(x) mask(x,vic_city))
+
+
 #find risk hotspots
-risk_hotspots <- lapply(risk_planar, function(x) detect_planar_hotspot(x,percentiles = c(0.90,0.95,0.99,0.999)))
+risk_hotspots <- lapply(risk_planar, function(x)
+  detect_planar_hotspot(x,percentiles = c(0.90,0.95,0.99,0.999)))
 
 
 #interactive plot
@@ -379,16 +454,13 @@ mapview(risk_hotspots,alpha.regions=0.25)
 risk_hotspots_cmbnd <- do.call(what = sf:::rbind.sf, args = risk_hotspots) %>% 
   mutate(bw = row.names(.)) %>% 
   separate(col = bw,into = c("bw",NA)) %>% 
-  mutate(bw=factor(bw,levels = as.character(bandwidth)))
+  mutate(bw=factor(bw,levels = as.character(bandwidth))) %>% 
+  filter(layer==0.99)
 
-pal <- RColorBrewer::brewer.pal(6,name = "Reds")[-(1:2)]
-
-ggplot()+
-  geom_sf(data=st_union(study_area),fill="snow1") +
-  geom_sf(data=risk_hotspots_cmbnd,aes(fill=layer,colour=layer)) +
-  scale_colour_manual(values = pal) + 
-  scale_fill_manual(values = pal) + 
-  facet_grid(bw~layer) +
+planar_risk_hotspot <- ggplot()+
+  geom_sf(data=vic_city,fill="snow1") +
+  geom_sf(data=risk_hotspots_cmbnd,fill="darkred",color="darkred") +
+  facet_wrap(~bw) +
   theme_minimal() +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -397,8 +469,18 @@ ggplot()+
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),legend.position = "none") +
-  coord_sf() + 
-  ggtitle("Risk Kernel Density: Percentile Threshold (Columns), Bandwidth (rows)")
+  coord_sf() 
+
+
+ 
+ggsave(planar_risk_hotspot,
+       width = 240,
+       height = 240,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "planar_risk_hotspot.jpeg" )
 
 
 ```
@@ -408,11 +490,12 @@ ggplot()+
 - We compare hotspots derived by taking the top 10%, 5%, 1% and 0.1% of lixel density values
 
 ```{r}
-exposure_network_kde <- read_sf(paste0(getwd(),"/output/strava_kde_10m_lixel_50m_250m_bw.gpkg"))
+exposure_network_kde <- read_sf(paste0(getwd(),"/output/strava_network_kde_10m_lixel_50m_250m_bw.gpkg"))
 
 risk_network_kde <- left_join(inc_network_kde,
                               exposure_network_kde %>% st_drop_geometry(),
                               by = c("ID","LIXID","length"))
+
 risk_network_kde <- risk_network_kde %>% 
   mutate(risk_kde_bw_50 = kde_bw_50.x/kde_bw_50.y,
          risk_kde_bw_100 = kde_bw_100.x/kde_bw_100.y,
@@ -435,13 +518,46 @@ mapview(risk_network_hotspots,zcol=list("thresholds","thresholds","thresholds","
 ```
 
 
+```{r}
+
+risk_network_hotspots_cmbnd <- do.call(what = sf:::rbind.sf, args = risk_network_hotspots) %>% 
+  mutate(bw = row.names(.)) %>% 
+  separate(col = bw,into = c("bw",NA)) %>% 
+  mutate(bw = factor(bw, levels = as.character(bandwidth))) %>% 
+  filter(thresholds==0.99)
+
+risk_network_hotspot <- ggplot()+
+  geom_sf(data=vic_city,fill="snow1") +
+  geom_sf(data=risk_network_hotspots_cmbnd,color="darkred") +
+  facet_wrap(~bw) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),legend.position = "none") +
+  coord_sf()
+
+
+ 
+ggsave(risk_network_hotspot,
+       width = 240,
+       height = 240,
+       units = "mm",
+       dpi=500,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "risk_network_hotspot.jpeg" )
+```
+
+
 # Main Takeaways
 
 - Bandwidth very important (obvious a-priori) and will reflect different spatial processes for a given scale
   - Larger bandwidth results in larger hotspots that likely reflect neighbourhood level processes such as land use, connectivity that lead to greater density
   - Smaller bandwidth results in smaller hotspots, more reflective of site specific conditions such as geometric design etc. 
-
-- Threshold more of a measure of resources. How many sites would a planner wish to investigate further, how much resources are needed? Choose to balance the number of hotspots versus available resources, set higher threshold to isolate fewer hotspots. 
 
 - Planar KDE less precise, especially at larger bandwidths. E.g. the hotspot for 500m planar KDE bandwidth much further east in downtown for 99.9 percentile compared to the equivalent network KDE which has the hotspot much closer to Johnson street bridge. Planar KDE assumes risk is constant over space, doesn't take into account differences in network density downtown.  
 
@@ -451,13 +567,13 @@ mapview(risk_network_hotspots,zcol=list("thresholds","thresholds","thresholds","
     - 2) This will enable us to identify spatial hotspots of _risk_ in addition to burden, in a simple straight forward manner that would not be possible without the bias-corrected exposure data
 
 
-# Moving forward...
+<!-- # Moving forward... -->
 
-Options for further comparisons:
+<!-- Options for further comparisons: -->
 
-1. Use LISA (Moran's I or Getis-Ord) to identify density hotspots amongst lixels with monte carlo simulation for significance (see [Xie and Yan](https://www.sciencedirect.com/science/article/pii/S0966692313000860)
-  - This would be a way of identifying high-high clusters for kernel density based on psuedo significance
-  - I have gotten this to work but need time to improve computation times to make it feasible. Confident I can do it but a matter of balancing the time and value added? 
+<!-- 1. Use LISA (Moran's I or Getis-Ord) to identify density hotspots amongst lixels with monte carlo simulation for significance (see [Xie and Yan](https://www.sciencedirect.com/science/article/pii/S0966692313000860) -->
+<!--   - This would be a way of identifying high-high clusters for kernel density based on psuedo significance -->
+<!--   - I have gotten this to work but need time to improve computation times to make it feasible. Confident I can do it but a matter of balancing the time and value added?  -->
 
 
 
