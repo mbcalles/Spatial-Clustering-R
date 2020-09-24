@@ -1,7 +1,7 @@
 # Spatial-Clustering-R
 
 
- ![My image](figures/study_area.jpg?raw=true)
+ ![My image](figures/study_area.jpeg?raw=true)
 
 Hotspot in the context of traffic safety we define as a location whether there are more unsafe incidents occurring than is normal. 
 
