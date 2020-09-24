@@ -1,5 +1,8 @@
 # Spatial-Clustering-R
 
+
+ ![My image](output/study_area.jpg)
+
 Hotspot in the context of traffic safety we define as a location whether there are more unsafe incidents occurring than is normal. 
 
 - The road system can be conceptualised as consisting of three components: the environment, the road users and their vehicles (Haddon, 1980; Sayed et al., 1995).
@@ -15,3 +18,5 @@ Hotspot in the context of traffic safety we define as a location whether there a
 - In road safety, there is a distinction between crash burden and crash risk. 
   - The first aim of this paper is to review commonly used methods for detecting spatial hotspots in road safety, including kernel density estimators and local measures of spatial association. 
   - The second aim of this paper is to apply these techniques to a case study of bicycling safety data and compare the results. 
+
+
