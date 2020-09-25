@@ -112,10 +112,10 @@ bikemaps_map <- ggplot() +
   coord_sf(xlim = c(470834.0,476155.9),ylim = c(5361141.0,5366429.4))
 
 ggsave(bikemaps_map,
-       width = 180,
-       height = 180,
+       width = 90,
+       height = 90,
        units = "mm",
-       dpi=500,
+       dpi=300,
        device = "jpeg",
        path = paste0(getwd(),"/figures"),
        filename = "incidents.jpeg" )
@@ -296,6 +296,28 @@ inc_network_kde <- read_sf(paste0(getwd(),"/output/bikemaps_network_kde_10m_lixe
 
 inc_network_kde <- inc_network_kde %>% 
   filter(st_intersects(x=.,y=st_as_sfc(st_bbox(vic_city)),sparse=FALSE)) # subset bikemaps by captial region boundary
+
+network_kde_example <- ggplot() +
+  geom_sf(data = inc_network_kde,aes(color=kde_bw_100))+
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        panel.grid.minor = element_blank() ,
+        panel.grid.major = element_blank() ,
+        axis.title = element_blank(),legend.position = "right",) +
+  coord_sf() + 
+  scale_color_viridis_c(option = "A",direction = -1,name="Density",)
+
+ggsave(network_kde_example,
+       width = 90,
+       height = 90,
+       units = "mm",
+       dpi=300,
+       device = "jpeg",
+       path = paste0(getwd(),"/figures"),
+       filename = "network_kde_example.jpeg" )
 
 cols_vec <- c("kde_bw_50","kde_bw_100","kde_bw_150","kde_bw_250")
 inc_network_hotspots <- lapply(cols_vec, function(x) detect_network_hotspot(inc_network_kde,x,percentiles = c(0.90,0.95,0.99,0.999)))
