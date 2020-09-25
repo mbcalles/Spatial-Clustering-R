@@ -1,6 +1,6 @@
 # Spatial-Clustering-R
 
-<img src="figures/incidents.jpeg" width="20">
+<img src="figures/incidents.jpeg" width="200">
 
 ![myimage](figures/incidents.jpeg?raw=false)
 
