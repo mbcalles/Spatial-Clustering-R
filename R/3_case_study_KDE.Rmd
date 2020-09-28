@@ -311,8 +311,8 @@ network_kde_example <- ggplot() +
   scale_color_viridis_c(option = "A",direction = -1,name="Density",)
 
 ggsave(network_kde_example,
-       width = 90,
-       height = 90,
+       width = 240,
+       height = 240,
        units = "mm",
        dpi=300,
        device = "jpeg",
