@@ -85,8 +85,8 @@ study_area_map <- ggplot() +
 
  
 ggsave(study_area_map,
-       width = 90,
-       height = 90,
+       width = 240,
+       height = 240,
        units = "mm",
        dpi=500,
        device = "jpeg",
@@ -108,12 +108,12 @@ bikemaps_map <- ggplot() +
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),
-        legend.position = "left") + 
+        legend.position = "right") + 
   coord_sf(xlim = c(470834.0,476155.9),ylim = c(5361141.0,5366429.4))
 
 ggsave(bikemaps_map,
-       width = 90,
-       height = 90,
+       width = 240,
+       height = 240,
        units = "mm",
        dpi=300,
        device = "jpeg",
@@ -308,8 +308,8 @@ network_kde_example <- ggplot() +
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),legend.position = "right",) +
-  coord_sf(xlim = c(475594.70-4770,475594.70+570), ylim = c(5361626.96-500,5361626.96+4820), expand = FALSE) + 
-  scale_color_viridis_c(option = "A",direction = -1,name="Density",)
+  coord_sf(xlim = c(475594.70-4770,475594.70+570), ylim = c(5361626.96-500,5361626.96+4810), expand = FALSE) + 
+  scale_color_viridis_c(option = "A",direction = -1,name="Density")
 
 ggsave(network_kde_example,
        width = 240,
