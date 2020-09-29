@@ -298,6 +298,7 @@ inc_network_kde <- inc_network_kde %>%
   filter(st_intersects(x=.,y=st_as_sfc(st_bbox(vic_city)),sparse=FALSE)) # subset bikemaps by captial region boundary
 
 network_kde_example <- ggplot() +
+  geom_sf(data=study_area_city,fill="grey80",colour="grey80") +
   geom_sf(data = inc_network_kde,aes(color=kde_bw_100))+
   theme_minimal() +
   theme(axis.text.x = element_blank(),
@@ -307,7 +308,7 @@ network_kde_example <- ggplot() +
         panel.grid.minor = element_blank() ,
         panel.grid.major = element_blank() ,
         axis.title = element_blank(),legend.position = "right",) +
-  coord_sf() + 
+  coord_sf(xlim = c(475594.70-4770,475594.70+570), ylim = c(5361626.96-500,5361626.96+4820), expand = FALSE) + 
   scale_color_viridis_c(option = "A",direction = -1,name="Density",)
 
 ggsave(network_kde_example,
