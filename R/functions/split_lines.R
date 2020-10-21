@@ -11,9 +11,9 @@ split_lines <- function(input_lines, max_length, id = "ID") {
   attr(input_lines[["geom_len"]], "units") <- NULL
   input_lines[["geom_len"]] <- as.numeric(input_lines[["geom_len"]])
 
-  too_short <- filter(select(input_lines, id, geom_column, geom_len), geom_len < max_length) %>% select(-geom_len)
+  too_short <- filter(select(all_of(input_lines),all_of(id), all_of(geom_column), geom_len), geom_len < max_length) %>% select(-geom_len)
 
-  too_long <- filter(select(input_lines, id, geom_column, geom_len), geom_len >= max_length)
+  too_long <- filter(select(all_of(input_lines),all_of(id), all_of(geom_column), geom_len), geom_len >= max_length)
 
   rm(input_lines) # just to control memory usage in case this is big.
 

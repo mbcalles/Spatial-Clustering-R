@@ -30,8 +30,11 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   # Give each node a unique index
 
   nodes <- nodes %>%
-    mutate(xy = paste(.$X, .$Y)) %>%
-    mutate(nodeID = group_indices(., factor(xy, levels = unique(xy)))) %>%
+    mutate(xy = paste(.$X, .$Y),
+           xy = factor(xy, levels = unique(xy))) %>%
+    group_by(xy)%>%
+    mutate(nodeID = cur_group_id()) %>%
+    ungroup() %>%
     select(-xy)
 
   # Combine the node indices with the edges
@@ -68,7 +71,7 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
 
   lxcenters <- st_line_midpoints(lixel_list$target_lixel)
 
-  #5. Select a point process occuring within the road network
+  #5. Select a point process occurring within the road network
 
   #input as function parameter
 
@@ -86,8 +89,7 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   source_lixels <- point_process %>% #summarize the number of points by LIXID (e.g. count the points for each LIXID)
     filter(!is.na(LIXID)) %>%
     group_by(LIXID) %>%
-    summarise(n_events = n()) %>%
-    ungroup() %>%
+    summarise(n_events = n(),`.groups`="drop") %>%
     st_drop_geometry()
 
   source_lixels <- inner_join(lxcenters,source_lixels,by="LIXID") #define geometry for source lixels
@@ -116,7 +118,7 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   cl <- makeCluster(n_cores)
   registerDoParallel(cores=cl) #parallel computing
 
-  distances <- foreach::foreach(i = 1:length(nearest_node_to_source_lixel),.packages = c("magrittr","igraph","tidygraph")) %dopar% {
+  distances <- foreach::foreach(i = 1:length(nearest_node_to_source_lixel),.packages = c("magrittr","igraph","tidygraph","sf")) %dopar% {
     temp <- distances(
       graph = graph,
       weights = graph %>% activate(edges) %>% pull(length),
@@ -130,6 +132,7 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   stopCluster(cl)
 
   rm("graph")
+
 
   # gauss <-function(x) {
   #
@@ -177,7 +180,7 @@ network_kde <- function(lixel_list,point_process,bandwidth = 100,n_cores=1,attri
   #sum densities over all lixels
   density <- cbind(LIXID,d_cols) %>%
     group_by(LIXID) %>%
-    summarise_each(list(~sum(.)))
+    summarise(across(everything(),sum),`.groups`="drop")
 
   network_kde <- left_join(lixel_list$target_lixel,density,by = "LIXID") %>%
     mutate(length = st_length(.)) %>%

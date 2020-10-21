@@ -4,11 +4,12 @@ source("R/load_packages_functions.R")
 
 ### read census boundary geometry
 
+# Returns data and geography as an sf-class data frame
 #CRD Census Tract
 
 crd_ct <- get_census(dataset='CA16', regions=list(CMA="59935"),
-                     vectors = c(bicycle="v_CA16_5807"),
-                     level='CT', use_cache = FALSE, geo_format = 'sf') %>%
+                     vectors = c("v_CA16_5807"),
+                     level='DA', use_cache = FALSE,geo_format = "sf") %>%
   st_transform(crs = 26910)  #transform projection to NAD 83 UTM Zone10N
 
 crd_city <- crd_ct %>%
@@ -18,7 +19,7 @@ crd_city <- crd_ct %>%
            `Region Name` == "Esquimalt"
            ) %>%
   group_by(`Region Name`) %>%
-  summarise() %>%
+  summarise(`.groups`="drop") %>%
   mutate(`Region Name` = as.character(`Region Name`))
 
 
@@ -120,7 +121,7 @@ lixel_list_10m <- lixelize_network(
 
 #################### 4. Write Data ####################
 
-st_write(vic_city, paste0(getwd(), "/input/processed/","city_of_victoria.gpkg"))
+st_write(vic_city, paste0(getwd(), "/input/processed/","city_of_victoria.gpkg"),)
 
 st_write(crd, paste0(getwd(), "/input/processed/","study_area.gpkg"))
 
@@ -133,3 +134,6 @@ st_write(bm_snp,paste0(getwd(), "/input/processed/","inc_bm_snp_30m.gpkg"))
 
 save(lixel_list_10m, file = paste0(getwd(), "/input/processed/","lixel_list_edge_ec_total_crash_strava.RData"))
 
+library(beepr)
+
+beep(sound = 8)
